@@ -1,0 +1,29 @@
+[package]
+name = "terminal_token"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4.38"
+colorize = "0.1.0"
+
+
+dotenv = "0.15.0"
+inquire = { version = "0.7.5", features = ["date"] }
+# Crossterm es el backend que se usará para manejar la terminal.
+crossterm = "0.27" 
+
+# Ratatui es la biblioteca que utilizarás para crear la interfaz de usuario en la terminal.
+ratatui = "0.27" 
+
+# Serde es una biblioteca útil si necesitas trabajar con serialización y deserialización de datos.
+serde = { version = "1.0", features = ["derive"] }
+
+# Opcional: Serde JSON es útil si trabajas con datos en formato JSON.
+serde_json = "1.0"
+#sqllite
+rusqlite = "0.32.1"
+#
+tokio = { version = "1.0", features = ["full"] }
+reqwest = { version = "0.12.5", features = ["blocking", "json"] }
+

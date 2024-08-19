@@ -1,0 +1,1 @@
+bitcoin, ethereum, tether,  ripple, cardano, solana, dogecoin, tron, litecoin, polygon, polkadot, avalanche-2, dai, chainlink, atom, monero,
