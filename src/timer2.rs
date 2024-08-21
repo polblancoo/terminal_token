@@ -7,12 +7,20 @@ use tokio::sync::Mutex as TokioMutex;
 use std::time::Duration;
 use tokio::time::sleep;
 
+//use std::sync::Arc;
+use std::sync::Mutex;
+use std::thread;
+use chrono::{DateTime, Utc};
+use ratatui::{backend::Backend, layout::Rect, Frame};
 
-use chrono::{ Utc};
+
+
+
 
 use rusqlite::Connection;
 use crate::coingecko::consulta_api_de_precios;
 use crate::dbManagerCud::{self, insert_token};
+use crate::ui::graficas;
 use crate::{coingecko, App, ConsultaCrypto};
 use crate::dbManager::dbManagerCud::get_tokens_from_db;
 use crate::dbManager::dbManagerCud::{update_tokens_in_db_solo_nombre,update_tokens_masparametros_in_db};
@@ -44,6 +52,7 @@ pub async fn start_timer(conn: Arc<TokioMutex<Connection>>, consulta: ConsultaCr
         sleep(update_interval).await;
     }
 }
+
 pub async fn start_timer_Info_tokens(conn: Arc<TokioMutex<Connection>>, tx: mpsc::Sender<String>) {
     let update_interval = Duration::from_secs(60 * 5); // Actualiza cada 5 minutos
     //let msg = "Start actualizando prices tokens (cada 5'). ".yellow();
@@ -58,9 +67,9 @@ pub async fn start_timer_Info_tokens(conn: Arc<TokioMutex<Connection>>, tx: mpsc
             match get_tokens_from_db(&*conn_guard) {
                 Ok(tokens) => tokens,
                 Err(e) => {
-                    tx.send(format!("Error al obtener tokens de la base de datos : {}", e)).unwrap();
+                   // tx.send(format!("Error al obtener tokens de la base de datos : {}", e)).unwrap();
                     //eprintln!("Error al obtener tokens de la base de datos: {}", e);
-                    sleep(update_interval).await;
+                    //sleep(update_interval).await;
                     continue;
                 }
             }
@@ -77,7 +86,7 @@ pub async fn start_timer_Info_tokens(conn: Arc<TokioMutex<Connection>>, tx: mpsc
                    //if token_data[0].symbol.len() == 0 { break; } // Verificar si token_data está vacío
                    if token_data.is_empty() {
                       //envio mensaje x canal a la interface
-                      tx.send(format!("Simbolo vacio de datos para el token {}: {}", token.to_uppercase(), "empty")).unwrap();
+                      //tx.send(format!("Simbolo vacio de datos para el token {}: {}", token.to_uppercase(), "empty")).unwrap();
                        continue; // Saltar a la siguiente iteración del bucle
                    }
                                       
@@ -95,12 +104,12 @@ pub async fn start_timer_Info_tokens(conn: Arc<TokioMutex<Connection>>, tx: mpsc
                             token_data[0].circulating_supply, 
 
                     ) {
-                        tx.send(format!("Error al actualizar la base de datos para el token {}: {}", token.to_uppercase(), e)).unwrap();
+                       // tx.send(format!("Error al actualizar la base de datos para el token {}: {}", token.to_uppercase(), e)).unwrap();
                         //eprintln!("Error al actualizar la base de datos para el token {}: {}", token, e);
                     }
                 }
                 Err(e) => {
-                    tx.send(format!("Error al obtener datos de CoinGecko para el token {}: {}", token.to_uppercase(), e)).unwrap();
+                    //tx.send(format!("Error al obtener datos de CoinGecko para el token {}: {}", token.to_uppercase(), e)).unwrap();
                     //eprintln!("Error al obtener datos de CoinGecko para el token {}: {}", token, e);
                 }
             }
@@ -110,7 +119,6 @@ pub async fn start_timer_Info_tokens(conn: Arc<TokioMutex<Connection>>, tx: mpsc
         sleep(update_interval).await;
     }
 }
-
 
 pub async fn start_timer_Prices_tokens(conn: Arc<TokioMutex<Connection>>, tx: mpsc::Sender<String>, app: Arc<TokioMutex <App>> ) {
    
@@ -162,20 +170,25 @@ pub async fn start_timer_Prices_tokens(conn: Arc<TokioMutex<Connection>>, tx: mp
                 for (timestamp, price) in price_data.prices {
                     // Si el timestamp es mayor que el último registrado, inserta los datos
                     if timestamp > start_time_unix {
-                        let fecha_y_hora = &chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp as i64, 0);
-                        let formato_fecha_y_hora = fecha_y_hora.unwrap().to_string();
+                        //let fecha_y_hora = &chrono::DateTime::<chrono::Utc>::from_timestamp(timestamp as i64, 0);
+                        //let formato_fecha_y_hora = fecha_y_hora.unwrap() ;
 
-                        let result = dbManagerCud::insert_price(
-                            &conn_guard,
-                            token.clone(),
-                            price,
-                            &formato_fecha_y_hora,
-                            &interval_actualizarBD.to_string(), 
-                        );
-
-                        if let Err(e) = result {
-                            println!("Error al insertar precio: {}", e);
-                        }
+                       // if !dbManagerCud::price_exists(&conn_guard, &token, &formato_fecha_y_hora).unwrap() {
+                                  
+                                    let result = dbManagerCud::insert_price(
+                                        &conn_guard,
+                                        token.clone(),
+                                        price,
+                                         timestamp ,
+                                        timestamp,//&interval_actualizarBD.to_string(), 
+                                    );
+                                    if let Err(e) = result {
+                                        println!("Error al insertar precio: {}", e);
+                                    }
+                      //  } else {
+                      //      println!("Datos duplicados ignorados para el timestamp: {}", timestamp);
+                      //  }
+                        
                     } else {
                         println!("Datos duplicados para el timestamp: {}", timestamp);
                     }
@@ -188,4 +201,18 @@ pub async fn start_timer_Prices_tokens(conn: Arc<TokioMutex<Connection>>, tx: mp
         // Espera el intervalo de actualización antes de la próxima consulta
         tokio::time::sleep(update_interval).await;
     }
+}
+
+pub fn start_graph_timer(tx: mpsc::Sender<()>,interval_secs: u64,) {
+    thread::spawn(move || {
+        loop {
+            // Enviar señal de actualización
+            if tx.send(()).is_err() {
+                // Si el receptor se cierra, salir del loop
+                break;
+            }
+            // Esperar el tiempo definido antes de la próxima actualización
+            thread::sleep(Duration::from_secs(interval_secs));
+        }
+    });
 }

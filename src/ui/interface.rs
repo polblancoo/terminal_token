@@ -1,3 +1,4 @@
+use chrono::Utc;
 use ratatui::backend::{Backend, CrosstermBackend};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::palette::material::YELLOW;
@@ -14,8 +15,12 @@ use colorize::AnsiColor;
 
 use crate::dbManager;
 use crate::dbManagerCud::TokenData;
+use crate::grafica_token_by_price_time;
+
 
 use std::sync::mpsc::Receiver;
+
+use super::graficas;
 
 
 
@@ -79,12 +84,12 @@ impl App {
 
     pub fn render_ui(&mut self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, db_conn: &Connection) -> Result<(), io::Error> {
         
-        // Leer mensajes desde el canal
-        while let Ok(message) = self.rx.try_recv() {
-            self.messages=message.yellow();
+      /*   // Leer mensajes desde el canal
+         while let Ok(message) = self.rx.try_recv() {
+            self.messages = message.yellow();
             
         }
-
+  */
         terminal.draw(|f| {
             // Dividir la pantalla en tres partes principales: izquierda, derecha y el pie de página.
             let main_chunks = Layout::default()
@@ -104,8 +109,8 @@ impl App {
                 .direction(Direction::Horizontal)
                 .constraints(
                     [
-                        Constraint::Percentage(20), // Parte izquierda
-                        Constraint::Percentage(80), // Parte derecha (dividida en dos)
+                        Constraint::Percentage(15), // Parte izquierda
+                        Constraint::Percentage(85), // Parte derecha (dividida en dos)
                     ]
                     .as_ref(),
                 )
@@ -116,8 +121,8 @@ impl App {
                 .direction(Direction::Vertical)
                 .constraints(
                     [
-                        Constraint::Percentage(30), // Parte superior derecha
-                        Constraint::Percentage(70), // Parte inferior derecha
+                        Constraint::Percentage(40), // Parte superior derecha
+                        Constraint::Percentage(60), // Parte inferior derecha
                     ]
                     .as_ref(),
                 )
@@ -132,7 +137,7 @@ impl App {
             let list = List::new(items)
                 .block(Block::default().borders(Borders::ALL).title("Lista Tokens"))
                 .highlight_style(Style::default().fg(Color::Yellow)) // Resaltar el ítem seleccionado
-                .highlight_symbol(">> ");
+                .highlight_symbol("🦀->> ");
   
             f.render_stateful_widget(list, left_right_chunks[0], &mut self.list_state);
 
@@ -155,27 +160,40 @@ impl App {
             };
             //Limpia la parte derecha superior (puedes ajustar las divisiones)
             f.render_widget(Clear, right_chunks[0]); // Limpia la parte derecha antes de dibujar
-        
+            f.set_cursor(0, 0);
             f.render_widget(details_paragraph, right_chunks[0]);
-
+            
                
           
  //-------------------------// Renderizar la parte inferior derecha. Graficos
             let right_bottom_section = Paragraph::new("Parte Inferior Derecha")
                 .block(Block::default().borders(Borders::ALL).title("Derecha Inferior"));
             //lamada a graficar -----
+            let start_time = Utc::now() - chrono::Duration::hours(1);
+            let end_time = Utc::now();
 
+            // Llamada a la función de graficado
+            graficas::grafica_token_by_price_time(
+                f,
+                right_chunks[1],
+                &self.selected_item,
+                db_conn,
+                start_time,
+                end_time,
+            );
 
             //---------------------
-            f.render_widget(Clear, main_chunks[1]); 
-            f.render_widget(right_bottom_section, right_chunks[1]);
+           // f.render_widget(Clear, main_chunks[1]); 
+           // f.render_widget(right_bottom_section, right_chunks[1]);
 
  //-------------------------//Renderizar la sección de mensajes en la parte inferior.
            let messages_text = self.messages.clone(); //.join(" -- ");
             let messages_section = Paragraph::new(messages_text)
                 .block(Block::default().borders(Borders::ALL).title("Mensajes"));
+           
             //Limpia 
             f.render_widget(Clear, main_chunks[1]); 
+            f.set_cursor(0, 0);
             f.render_widget(messages_section, main_chunks[1]);
 
  //-------------------------// Renderizar la sección de atajos de teclado en la parte inferior.

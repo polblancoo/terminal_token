@@ -1,0 +1,19 @@
+#pasar listado de tokens a buscar :
+# xargs -a valores.txt binario
+  #valores es el listado de token separados por ','
+  #ejecuta el comando para no reescribir los tokens
+#   ------- ó --------------
+#binario $(cat consulta.txt)
+
+#API coneccion a COINGEKO
+APIKEY="APYKEY "
+#Elegir fuente datos....
+#coingecko
+#traidingview
+#
+GET_DATOS="coingecko"
+
+#tipo consulta "all" o "price"
+CONSULTA="all"
+#intervalo de tiempo en sec
+Intervalo_actualizacionPrices="60"

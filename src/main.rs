@@ -165,15 +165,15 @@ loop {
                     match dbManagerCud::get_token_data(&conn, &selected_token) {
                         Ok(Some(token_data)) => {
                             app_lock.token_data = Some(token_data.clone());
-                            app_lock.add_message(format!("Datos cargados para: {}", selected_token.green()));
+                            app_lock.add_message(format!("Datos.....:{}", selected_token.green()));
                         }
                         Ok(None) => {
                             app_lock.token_data = None;
-                            app_lock.add_message(format!("No hay datos para: {}", selected_token.red()));
+                            //app_lock.add_message(format!("No hay datos para: {}", selected_token.red()));
                         }
                         Err(e) => {
                             app_lock.token_data = None;
-                            app_lock.add_message(format!("Error al cargar datos: {}", e.to_string().red()));
+                            //app_lock.add_message(format!("Error al cargar datos: {}", e.to_string().red()));
                         }
                     }
                     

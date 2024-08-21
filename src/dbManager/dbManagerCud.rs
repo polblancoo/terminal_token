@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use chrono::{DateTime,TimeZone, Utc}; // Para obtener la hora actual en UTC
+use chrono::{naive, DateTime, TimeZone, Utc}; // Para obtener la hora actual en UTC
 use rusqlite::{params, Connection, OptionalExtension, Result};
 
 use crate::ConsultaCrypto;
@@ -98,16 +98,18 @@ pub fn get_tokens_from_db(conn: &Connection) -> Result<Vec<String>> {
 }
 
 // Insertar un nuevo precio
-pub fn insert_price(conn: &Connection, token_name: String, price: f64, timestamp: &str, interval: &str ) -> Result<usize> {
+pub fn insert_price(conn: &Connection, token_name: String, price: f64, timestamp: f64, interval: f64 ) -> Result<usize> {
    //let price : f32= price as f32;
     conn.execute(
-        "INSERT INTO prices (token_id, price, timestamp, interval) VALUES (?1, ?2, ?3, ?4)",
+        "INSERT OR IGNORE INTO prices (token_id, price, timestamp, interval) VALUES (?, ?, ?, ?)",
+
         params![token_name, price, timestamp, interval],
     )
-}
+}//        "INSERT INTO prices (token_id, price, timestamp, interval) VALUES (?1, ?2, ?3, ?4)",
+
 
 // Obtener todos los tokens
-pub fn get_tokens(conn: &Connection) -> Result<Vec<(String)>> {
+pub fn get_tokens(conn: &Connection) -> Result<Vec<String>> {
     let mut stmt = conn.prepare("SELECT name FROM tokens")?;
     let tokens = stmt.query_map([], |row| {
         let name: String = row.get(0)?;
@@ -239,6 +241,13 @@ pub async fn update_database_token_prices(conn: &Connection, token_name: &str, t
 
     Ok(())
 }
+pub  fn price_exists(conn: &Connection, token: &str, timestamp: &str) -> Result<bool> {
+    let mut stmt = conn.prepare(
+        "SELECT EXISTS(SELECT 1 FROM prices WHERE token_id = ?1 AND timestamp = ?2)"
+    )?;
+    let exists: bool = stmt.query_row(params![token, timestamp], |row| row.get(0))?;
+    Ok(exists)
+}
 
 pub fn get_last_update_timestamp_prices_token(conn: &Connection, token_name: String) -> Result<Option<String>> {
     let mut stmt = conn.prepare("SELECT timestamp FROM prices WHERE name = ?1 ORDER BY timestamp DESC LIMIT 1")?;
@@ -254,37 +263,53 @@ pub fn get_prices_time_to_vec(
     token_id: &str,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
+    intervalo: f64
 ) -> Result<Vec<(DateTime<Utc>, f64)>> {
-    // Prepara la consulta SQL
-    let mut stmt = conn.prepare(
-        "SELECT timestamp, price FROM prices 
-         WHERE token_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3"
+     // Prepara la consulta SQL
+     let mut stmt = conn.prepare(
+            
+                "SELECT AVG(price) as price, timestamp 
+        FROM prices 
+        WHERE token_id = ?1 AND timestamp >= ?2 
+        GROUP BY timestamp"
     )?;
-
+    //AND interval <= ?3 
+    //intervalo,
+    // "SELECT  price, timestamp FROM prices 
+    //    WHERE token_id = ?1 AND  timestamp >= ?2 "
+    
     // Convierte las fechas a timestamps para la consulta
-    let start_time_ts = start_time.timestamp();
-    let end_time_ts = end_time.timestamp();
-
-    // Ejecuta la consulta y mapea los resultados a un vector
+    let start_time = start_time.timestamp() as f64;
+    let end_time_ts = end_time.timestamp() as f64;
+     // Ejecuta la consulta y mapea los resultados a un vector
     let prices_iter = stmt.query_map(
-        params![token_id, start_time_ts, end_time_ts],
+        params![token_id,  start_time ],
         |row| {
-            let timestamp: i64 = row.get(0)?;
-            let price: f64 = row.get(1)?;
-            Ok((timestamp, price))
+            let price: f64 = row.get(0)?;         // price está en la primera columna del SELECT
+            let timestamp: f64 = row.get(1)?;     // timestamp está en la segunda columna del SELECT
+           // println!("Obtenido price: {}, timestamp: {}", price, timestamp); // Debug output
+            Ok((timestamp as i64, price))
         },
     )?;
 
     // Colecta los resultados en un vector, filtrando los datos inválidos
     let prices: Vec<(DateTime<Utc>, f64)> = prices_iter
         .filter_map(|result| {
-            result.ok().and_then(|(timestamp, price)| {
-                Utc.timestamp_opt(timestamp, 0)
-                    .single()
-                    .map(|datetime| (datetime, price))
-            })
+            match result {
+                Ok((timestamp, price)) => {
+                    Utc.timestamp_opt(timestamp, 0)
+                        .single()
+                        .map(|datetime| (datetime, price))
+                }
+                Err(e) => {
+                    println!("Error al mapear la fila: {:?}", e);
+                    None
+                }
+            }
         })
         .collect();
+
+ // println!("Total de registros obtenidos para token '{}': {}", token_id, prices.len());
 
     Ok(prices)
 }
